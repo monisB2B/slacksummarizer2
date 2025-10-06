@@ -1,0 +1,13 @@
+@echo off
+echo Starting Slack Summarizer with HTTPS...
+
+echo Checking for required certificates...
+if not exist "certs\cert.pem" (
+  echo No certificates found. Generating self-signed certificates...
+  node generate-certs.js
+) else (
+  echo Certificates found. Using existing certificates.
+)
+
+echo Starting secure server...
+node secure-server.js

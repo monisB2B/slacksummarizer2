@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # Application server
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      # Use Supabase instead of local Postgres
+      - DATABASE_URL=${DATABASE_URL}
+      - DIRECT_URL=${DIRECT_URL}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_CLIENT_ID=${SLACK_CLIENT_ID}
+      - SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}
+      - BASE_URL=${BASE_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DIGEST_CHANNEL=${DIGEST_CHANNEL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - CRON_EXPR=0 23 * * *
+      - SOFT_DELETE_DAYS=${SOFT_DELETE_DAYS}
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    restart: always
+    volumes:
+      - ./certs:/app/certs
+    command: node secure-server.js
+  
+  # Hourly cron service
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - DIRECT_URL=${DIRECT_URL}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_CLIENT_ID=${SLACK_CLIENT_ID}
+      - SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}
+      - DIGEST_CHANNEL=${DIGEST_CHANNEL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+    restart: always
+    volumes:
+      - ./logs:/app/logs
+    # Run cron job every hour with logging
+    command: >
+      sh -c "mkdir -p /app/logs && 
+             apt-get update && apt-get install -y cron && 
+             echo '0 * * * * cd /app && node scripts/hourly-summarizer.js >> /app/logs/hourly-summary-$(date +\%Y\%m\%d).log 2>&1' > /etc/cron.d/hourly-cron && 
+             echo '0 0 * * * cd /app && node scripts/daily-summary.js >> /app/logs/daily-summary-$(date +\%Y\%m\%d).log 2>&1' >> /etc/cron.d/hourly-cron && 
+             echo '0 1 * * 1 cd /app && node scripts/fetch-slack-data.js 7 >> /app/logs/fetch-data-$(date +\%Y\%m\%d).log 2>&1' >> /etc/cron.d/hourly-cron && 
+             chmod 0644 /etc/cron.d/hourly-cron && 
+             crontab /etc/cron.d/hourly-cron && 
+             echo 'Cron jobs scheduled. Starting cron...' && 
+             cron -f"

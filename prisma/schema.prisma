@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ConversationType {
+  channel
+  group
+  im
+  mpim
+}
+
+model Conversation {
+  id              Int              @id @default(autoincrement())
+  slack_id        String           @unique
+  name            String
+  type            ConversationType
+  last_ts_processed String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  // Relations
+  messages        Message[]
+  summaries       Summary[]
+}
+
+model Message {
+  id          BigInt      @id @default(autoincrement())
+  channel_id  Int
+  channel     Conversation @relation(fields: [channel_id], references: [id])
+  ts          String
+  user_id     String
+  text        String      @db.Text
+  thread_ts   String?
+  permalink   String
+  reactions   Json?
+  mentions    String[]
+  createdAt   DateTime    @default(now())
+
+  @@index([channel_id])
+  @@index([ts])
+  @@index([thread_ts])
+  @@index([user_id])
+  @@unique([channel_id, ts])
+}
+
+model Summary {
+  id            Int       @id @default(autoincrement())
+  channel_id    Int
+  channel       Conversation @relation(fields: [channel_id], references: [id])
+  period_start  DateTime
+  period_end    DateTime
+  summary       String    @db.Text
+  highlights    Json
+  tasks         Json
+  mentions      Json
+  createdAt     DateTime  @default(now())
+
+  @@index([channel_id])
+  @@index([period_start, period_end])
+}
+
+model User {
+  id          Int       @id @default(autoincrement())
+  slack_id    String    @unique
+  name        String
+  real_name   String?
+  email       String?
+  avatar      String?
+  is_bot      Boolean   @default(false)
+  last_updated DateTime  @default(now())
+
+  @@index([slack_id])
+}
+
+model Installation {
+  id                      Int       @id @default(autoincrement())
+  team_id                 String    @unique
+  team_name               String
+  bot_token               String
+  bot_id                  String
+  bot_user_id             String
+  user_id                 String?
+  user_token              String?
+  incoming_webhook_url    String?
+  incoming_webhook_channel String?
+  incoming_webhook_channel_id String?
+  installed_at            DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+
+  @@index([team_id])
+}
